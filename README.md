@@ -1,1 +1,1 @@
-# simulador-de-cuotas-mercadopago
+# Simulador de cuotas Mercadopago
