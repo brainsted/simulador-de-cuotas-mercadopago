@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Simulador de cuotas - MercadoPago</title>
+	<meta charset="utf-8">
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+</head>
+	<body>
+	<!--Creado por Brainsted Group-->
+	<!--www.brainsted.com-->
+	<!--http://github.com/brainsted/simulador-de-cuotas-mercadopago-->
+		<form id="fBuy" class="container">
+			<div id="precioss-header" class="text-center">Precio y Cantidad del Producto</div>
+			<div class="row">
+				<div class="col-md-3 col-md-offset-3">
+					<div class="form-group">
+						<label for="amount">Precio $</label>
+						<input class="form-control" type="number" name="amount" id="amount">
+					</div>
+				</div>
+				<div class="col-md-3">
+					<div class="form-group">
+						<label for="qty">Cantidad</label>
+						<input class="form-control" type="number" min="1" max="10" name="qty" id="qty" class="qty" value="1">
+					</div>
+				</div>
+			</div>
+		</form>
+		<div id="simulador-de-cuotas" class="container">
+			<div id="simulador-de-cuotas-header" class="text-center">SIMULADOR DE CUOTAS</div>
+				<form id="fSimulator">
+					<div class="row">
+						<div class="col-md-4">
+							<div class="form-group">
+							    <label for="simulator-card">Tarjeta</label>
+							    <select class="form-control" id="simulator-card" data-style="btn-simulador"></select>
+							</div>
+						</div>
+						<div class="col-md-4">
+							<div class="form-group">
+							    <label for="entidad">Entidad</label>
+							    <select class="form-control" id="simulator-issuer" data-style="btn-simulador"></select>
+							</div>
+						</div>								
+						<div class="col-md-4">
+							<div class="form-group">
+							    <label for="simulator-installment">Cuotas</label>
+							    <select class="form-control" id="simulator-installment" data-style="btn-simulador"></select>
+							</div>
+						</div>
+					</div>
+					<div id="simulator-installment-result" class="row text-verde text-center"></div>
+				</form>
+				<script>
+					$(document).ready(function(){
+						$.getScript("https://secure.mlstatic.com/sdk/javascript/v1/mercadopago.js")
+							.done(function() {
+								Mercadopago.setPublishableKey("INGRESE CLAVE PÚBLICA AQUÍ");
+
+								// CARGA TARJETAS DISPONIBLES
+								simulator_get_cards();
+								function simulator_get_cards()
+								{
+									Mercadopago.getAllPaymentMethods(simulatorSetPaymentMethodInfo);
+								}
+								function simulatorSetPaymentMethodInfo( status, cards )
+								{
+									var options='<option value="-1">Elige...</option>';
+							        for(i=0; cards && i<cards.length; i++){
+							          	if( cards[i].payment_type_id == 'credit_card' && cards[i].status == 'active' ){
+							          		options+='<option value="'+cards[i].id+'">'+cards[i].name +'</option>';
+							          	}		          	
+							        }
+							        $("#simulator-card").html(options);
+								}
+
+								// ACTUALIZO EMISORES SEGUN TARJETA
+								$("#simulator-card").change(function(){
+									var card_id = $(this, "option:selected").val();
+									// LIMPIO CAMPOS DEPENDIENTES
+									$("#simulator-issuer").html('');
+									$("#simulator-installment").html('');
+									$("#simulator-installment-result").slideUp();
+									$("#simulator-issuer").prop( "disabled", false );
+									//
+									Mercadopago.getIssuers( card_id, simulatorSetIssuersInfo);
+								});
+								function simulatorSetIssuersInfo( status, issuers )
+								{
+									if( issuers.length ){
+										var options='<option value="-1">Elige...</option>';
+								        for(i=0; issuers && i<issuers.length; i++){
+								          	options+='<option value="'+issuers[i].id+'">'+issuers[i].name +'</option>';
+								        }
+								        $("#simulator-issuer").html(options);
+							    	}else{
+							    		$("#simulator-issuer").prop( "disabled", true );
+							    		Mercadopago.getInstallments({
+									        	"payment_method_id": $("#simulator-card option:selected").val(),
+									        	"amount": get_amount()
+									    },simulatorSetInstallmentInfo);
+							    	}
+								}
+
+								// ACTUALIZO CUOTAS SEGUN EMISOR
+								$("#simulator-issuer").change(function(){
+									var issuer_id = $(this, "option:selected").val();
+									// LIMPIO CAMPOS DEPENDIENTES
+									$("#simulator-installment").html('');
+									$("#simulator-installment-result").slideUp();
+									//
+									Mercadopago.getInstallments({
+								        	"payment_method_id": $("#simulator-card option:selected").val(),
+								        	"issuer_id": this.value,
+								        	"amount": get_amount()
+								    },simulatorSetInstallmentInfo);
+								});
+								function simulatorSetInstallmentInfo( status, installments )
+								{
+									var payer_costs = installments[0].payer_costs;
+									var options='<option value="-1">Elige...</option>';
+							        for(i=0; payer_costs && i<payer_costs.length; i++){
+							        	var rate_message='';
+							        	var label ='';
+							        	var rate_style = '';
+							        	if (! payer_costs[i].installment_rate) {
+							        		rate_message='    Sin Interés';
+							        		rate_style = 'style="font-weight:700;"';
+							        	}
+							        	for (j=0;j<payer_costs[i].labels.length;j++) {
+							        		if (payer_costs[i].labels[j].substring(0,3) == "CFT") label = payer_costs[i].labels[j] ;
+							        	}
+							        	var regex = new RegExp('_', 'g');
+							          	options+='<option '+rate_style+' value="'+payer_costs[i].installment_amount+'" data-message="'+payer_costs[i].recommended_message+'" data-label="'+label.replace(regex,': ').replace('|',' | ')+'">'+payer_costs[i].installments + rate_message+'</option>';
+							        }
+							        $("#simulator-installment").html( options );
+								}
+
+								// MUESTRO VALOR CUOTA
+								$("#simulator-installment").change(function(){
+									var selected = $(this).find('option:selected');
+					       			var message = selected.data('message'); 
+					       			var label = selected.data('label'); 
+									$("#simulator-installment-result").hide( function(){
+										$(this).html( '<big><strong>' + message + '</strong></big><br/><small>'+ label +'</small>' ).slideDown();
+									});
+								});
+
+								//
+								function get_amount()
+								{
+									var total 	= 0;
+									var amount 	= parseFloat( $("#amount").val() );
+
+									if ( $("#qty").length ) {
+										total = amount * $("#qty").val();
+									}else{
+										total = amount;
+									}
+
+									return total;
+								}
+
+							});
+					});
+				</script>
+			</div>
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+
+	</body>
+</html>
