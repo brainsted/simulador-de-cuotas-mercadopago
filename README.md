@@ -1,7 +1,9 @@
 # Simulador de cuotas Mercadopago
 ## Instalación
-Incluir este archivo en su HTML o PHP, reemplazando en la línea ``36``
+Incluir este archivo en su HTML o PHP, reemplazando en la línea ``59``
+
   ``Mercadopago.setPublishableKey("INGRESE CLAVE PÚBLICA AQUÍ");``
+  
 el texto por la clave pública de MercadoPago de su eShop.
 ## Requerimientos
 jQuery 1.11.2 o superior
